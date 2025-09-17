@@ -64,7 +64,29 @@ a {
   font-size: 1rem;
   transition: background-color 0.3s ease;
 }
+#tabs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+#tabs button {
+  background: #00796b;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#tabs button.active {
+  background: #004d40;
+}
 
 #upload-button:hover {
   background-color: #004d40;
+
 }
