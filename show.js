@@ -24,13 +24,38 @@ async function loadShow() {
 
     mp4Files.forEach((file, index) => {
       const title = episodeTitles[index] || `Episode ${index + 1}`;
+      const episodeId = `${author}_${showName}_${file.name}`;
+
       const div = document.createElement("div");
       div.className = "show";
       div.innerHTML = `
         <h2>${title}</h2>
-        <video controls src="${file.download_url}" width="100%"></video>
+        <video
+          id="${episodeId}"
+          data-episode="${episodeId}"
+          controls
+          width="100%"
+          src="${file.download_url}"
+        ></video>
       `;
       container.appendChild(div);
+
+      const video = div.querySelector("video");
+
+      // Resume from saved time
+      video.addEventListener("loadedmetadata", () => {
+        const savedTime = localStorage.getItem(`vizion4_${episodeId}`);
+        if (savedTime) {
+          video.currentTime = parseFloat(savedTime);
+        }
+      });
+
+      // Save progress every few seconds
+      video.addEventListener("timeupdate", () => {
+        if (!video.paused && !video.ended) {
+          localStorage.setItem(`vizion4_${episodeId}`, video.currentTime);
+        }
+      });
     });
 
   } catch (err) {
