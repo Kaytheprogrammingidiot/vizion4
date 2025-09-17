@@ -1,9 +1,23 @@
 const repo = "Kaytheprogrammingidiot/vizion4-videos";
 const baseApi = `https://api.github.com/repos/${repo}/contents/shows`;
-const container = document.getElementById("show-list");
-const searchInput = document.getElementById("search");
 
-let allShows = []; // Store all show data for filtering
+const homeContainer = document.getElementById("home-list");
+const recommendedContainer = document.getElementById("recommended-list");
+const searchInput = document.getElementById("search");
+const tabs = document.querySelectorAll("#tabs button");
+
+let allShows = [];
+
+tabs.forEach(tab => {
+  tab.addEventListener("click", () => {
+    tabs.forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+
+    const selected = tab.dataset.tab;
+    homeContainer.style.display = selected === "home" ? "grid" : "none";
+    recommendedContainer.style.display = selected === "recommended" ? "grid" : "none";
+  });
+});
 
 async function loadAllShows() {
   try {
@@ -29,23 +43,26 @@ async function loadAllShows() {
         const iconFile = files.find(f => /\.(png|jpg|jpeg)$/i.test(f.name));
         const iconUrl = iconFile ? iconFile.download_url : null;
 
-        allShows.push({
+        const showData = {
           title: info.title,
           author: info.author || author.name,
           iconUrl,
           link: `show.html?author=${author.name}&name=${show.name}`
-        });
+        };
+
+        allShows.push(showData);
       }
     }
 
-    renderShows(allShows);
+    renderShows(allShows, homeContainer);
+    renderRecommended(allShows, recommendedContainer);
   } catch (err) {
     console.error("Error loading shows:", err);
-    container.innerHTML = `<p>Failed to load shows.</p>`;
+    homeContainer.innerHTML = `<p>Failed to load shows.</p>`;
   }
 }
 
-function renderShows(shows) {
+function renderShows(shows, container) {
   container.innerHTML = "";
   shows.forEach(show => {
     const div = document.createElement("div");
@@ -60,13 +77,19 @@ function renderShows(shows) {
   });
 }
 
+function renderRecommended(shows, container) {
+  // Simple logic: pick first 3 shows (or randomize later)
+  const recommended = shows.slice(0, 3);
+  renderShows(recommended, container);
+}
+
 searchInput.addEventListener("input", () => {
   const query = searchInput.value.toLowerCase();
   const filtered = allShows.filter(show =>
     show.title.toLowerCase().includes(query) ||
     show.author.toLowerCase().includes(query)
   );
-  renderShows(filtered);
+  renderShows(filtered, homeContainer);
 });
 
 loadAllShows();
