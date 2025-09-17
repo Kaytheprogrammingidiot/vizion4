@@ -47,6 +47,7 @@ a {
   font-size: 1rem;
   border: 2px solid #00796b;
   border-radius: 8px;
+  box-sizing: border-box;
 }
 #upload-container {
   text-align: center;
@@ -90,3 +91,4 @@ a {
   background-color: #004d40;
 
 }
+
