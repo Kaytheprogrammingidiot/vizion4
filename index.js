@@ -7,6 +7,7 @@ const searchInput = document.getElementById("search");
 const tabs = document.querySelectorAll("#tabs button");
 
 let allShows = [];
+let currentTab = "home";
 
 // Tab switching
 tabs.forEach(tab => {
@@ -14,11 +15,12 @@ tabs.forEach(tab => {
     tabs.forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
 
-    const selected = tab.dataset.tab;
-    homeContainer.style.display = selected === "home" ? "grid" : "none";
-    myListContainer.style.display = selected === "mylist" ? "grid" : "none";
+    currentTab = tab.dataset.tab;
 
-    if (selected === "mylist") {
+    homeContainer.style.display = currentTab === "home" ? "grid" : "none";
+    myListContainer.style.display = currentTab === "mylist" ? "grid" : "none";
+
+    if (currentTab === "mylist") {
       renderMyList(myListContainer);
     }
   });
@@ -63,25 +65,35 @@ async function loadAllShows() {
     renderShows(allShows, homeContainer);
   } catch (err) {
     console.error("Error loading shows:", err);
-    homeContainer.innerHTML = `<p>Failed to load shows.</p>`;
+    if (homeContainer) {
+      homeContainer.innerHTML = `<p>Failed to load shows.</p>`;
+    }
   }
 }
 
 function renderShows(shows, container) {
+  if (!container) return;
   container.innerHTML = "";
+
   shows.forEach(show => {
     const div = document.createElement("div");
     div.className = "show";
+
+    const isInMyList = currentTab === "mylist";
+
     div.innerHTML = `
       ${show.iconUrl ? `<img src="${show.iconUrl}" alt="${show.title}" style="width:100%;border-radius:8px;">` : ""}
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
       <a href="${show.link}">▶ Watch</a>
-      <button class="add-to-list" data-id="${show.id}">➕ Add to My List</button>
+      <button class="${isInMyList ? "remove-from-list" : "add-to-list"}" data-id="${show.id}">
+        ${isInMyList ? "❌ Remove from My List" : "➕ Add to My List"}
+      </button>
     `;
     container.appendChild(div);
   });
 
+  // Add-to-list logic
   container.querySelectorAll(".add-to-list").forEach(button => {
     button.addEventListener("click", () => {
       const id = button.dataset.id;
@@ -95,10 +107,25 @@ function renderShows(shows, container) {
       }
     });
   });
+
+  // Remove-from-list logic
+  container.querySelectorAll(".remove-from-list").forEach(button => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.id;
+      let existing = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+      existing = existing.filter(item => item.id !== id);
+      localStorage.setItem("vizion4_mylist", JSON.stringify(existing));
+      renderMyList(container); // Refresh list
+    });
+  });
 }
 
 function renderMyList(container) {
   const saved = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+  if (!saved.length) {
+    container.innerHTML = `<p>No shows in your list yet.</p>`;
+    return;
+  }
   renderShows(saved, container);
 }
 
