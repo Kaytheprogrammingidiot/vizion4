@@ -9,12 +9,15 @@ async function loadShow() {
   const header = document.querySelector("header");
 
   try {
+    // Load show info
     const infoMeta = await fetch(`${baseApi}/info.json`).then(r => r.json());
     const info = await fetch(infoMeta.download_url).then(r => r.json());
 
+    // Load episode titles
     const episodesMeta = await fetch(`${baseApi}/episodes.json`).then(r => r.json());
     const episodeTitles = await fetch(episodesMeta.download_url).then(r => r.json());
 
+    // Load all files
     const filesMeta = await fetch(baseApi).then(r => r.json());
     const mp4Files = filesMeta.filter(f => f.name.endsWith(".mp4")).sort((a, b) => {
       return parseInt(a.name) - parseInt(b.name);
@@ -26,6 +29,10 @@ async function loadShow() {
       const title = episodeTitles[index] || `Episode ${index + 1}`;
       const episodeId = `${author}_${showName}_${file.name}`;
 
+      // Try to find matching .vtt file
+      const vttFile = filesMeta.find(f => f.name === file.name.replace(".mp4", ".vtt"));
+      const vttUrl = vttFile ? vttFile.download_url : null;
+
       const div = document.createElement("div");
       div.className = "show";
       div.innerHTML = `
@@ -36,17 +43,21 @@ async function loadShow() {
           controls
           playsinline
           width="100%"
-          src="${file.download_url}"
-        ></video>
+        >
+          <source src="${file.download_url}" type="video/mp4">
+          ${vttUrl ? `<track kind="captions" label="English" srclang="en" src="${vttUrl}" default>` : ""}
+        </video>
       `;
       container.appendChild(div);
 
       const video = div.querySelector("video");
       const player = new Plyr(video, {
-        controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+        controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'fullscreen'],
+        captions: { active: true, update: true, language: 'en' },
         disableContextMenu: true
       });
 
+      // Resume support
       video.addEventListener("loadedmetadata", () => {
         const savedTime = localStorage.getItem(`vizion4_${episodeId}`);
         if (savedTime) {
