@@ -78,7 +78,6 @@ function renderShows(shows, container) {
 }
 
 function renderRecommended(shows, container) {
-  // Simple logic: pick first 3 shows (or randomize later)
   const recommended = shows.slice(0, 3);
   renderShows(recommended, container);
 }
