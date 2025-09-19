@@ -134,3 +134,23 @@ video {
   --plyr-color-main: #00bfa5;
   --plyr-video-background: #000;
 }
+
+#back-container {
+  margin: 1rem;
+}
+
+#back-button {
+  display: inline-block;
+  background-color: #00796b;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 0.95rem;
+  transition: background-color 0.3s ease;
+}
+
+#back-button:hover {
+  background-color: #004d40;
+}
