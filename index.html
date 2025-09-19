@@ -5,21 +5,30 @@
   <title>Vizion4</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <header><h1>Vizion4</h1><p>Shows created for the web.</p></header>
+<body oncontextmenu="return false;">
+  <header>
+    <h1>Vizion4</h1>
+    <p>Shows Created for the web</p>
+  </header>
+
+  <!-- Tabs -->
   <nav id="tabs">
-  <button data-tab="home" class="active">Home</button>
-  <button data-tab="recommended">Recommended</button>
-</nav>
-  <main id="home-list"></main>
-<main id="recommended-list" style="display:none;"></main>
-  <div id="upload-container">
-    <a href="https://forms.gle/MjaAxdAc7HJQh6d68" target="_blank" id="upload-button">Upload</a>
-  </div>
+    <button data-tab="home" class="active">Home</button>
+    <button data-tab="recommended">Recommended</button>
+  </nav>
+
+  <!-- Search bar -->
   <input type="text" id="search" placeholder="Search shows or authors..." />
-  <main id="show-list"></main>
+
+  <!-- Upload button -->
+  <div id="upload-container">
+    <a href="https://forms.gle/MjaAxdAc7HJQh6d68" target="_blank" id="upload-button">📤 Upload a Show</a>
+  </div>
+
+  <!-- Show containers -->
+  <main id="home-list"></main>
+  <main id="recommended-list" style="display:none;"></main>
+
   <script src="index.js"></script>
 </body>
-
 </html>
-
