@@ -34,6 +34,7 @@ async function loadShow() {
           id="${episodeId}"
           data-episode="${episodeId}"
           controls
+          playsinline
           width="100%"
           src="${file.download_url}"
         ></video>
@@ -41,8 +42,11 @@ async function loadShow() {
       container.appendChild(div);
 
       const video = div.querySelector("video");
+      const player = new Plyr(video, {
+        controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+        disableContextMenu: true
+      });
 
-      // Resume from saved time
       video.addEventListener("loadedmetadata", () => {
         const savedTime = localStorage.getItem(`vizion4_${episodeId}`);
         if (savedTime) {
@@ -50,7 +54,6 @@ async function loadShow() {
         }
       });
 
-      // Save progress every few seconds
       video.addEventListener("timeupdate", () => {
         if (!video.paused && !video.ended) {
           localStorage.setItem(`vizion4_${episodeId}`, video.currentTime);
