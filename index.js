@@ -3,6 +3,7 @@ const baseApi = `https://api.github.com/repos/${repo}/contents/shows`;
 
 const homeContainer = document.getElementById("home-list");
 const myListContainer = document.getElementById("mylist-list");
+const recentContainer = document.getElementById("recent-list");
 const searchInput = document.getElementById("search");
 const tabs = document.querySelectorAll("#tabs button");
 
@@ -19,10 +20,10 @@ tabs.forEach(tab => {
 
     homeContainer.style.display = currentTab === "home" ? "grid" : "none";
     myListContainer.style.display = currentTab === "mylist" ? "grid" : "none";
+    recentContainer.style.display = currentTab === "recent" ? "grid" : "none";
 
-    if (currentTab === "mylist") {
-      renderMyList(myListContainer);
-    }
+    if (currentTab === "mylist") renderMyList(myListContainer);
+    if (currentTab === "recent") renderRecent(recentContainer);
   });
 });
 
@@ -85,9 +86,9 @@ function renderShows(shows, container) {
       ${show.iconUrl ? `<img src="${show.iconUrl}" alt="${show.title}" style="width:100%;border-radius:8px;">` : ""}
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
-      <a href="${show.link}">▶ Watch</a>
+      <a href="${show.link}">Watch</a>
       <button class="${isInMyList ? "remove-from-list" : "add-to-list"}" data-id="${show.id}">
-        ${isInMyList ? "❌ Remove from My List" : "➕ Add to My List"}
+        ${isInMyList ? "Remove from My List" : "Add to My List"}
       </button>
     `;
     container.appendChild(div);
@@ -127,6 +128,15 @@ function renderMyList(container) {
     return;
   }
   renderShows(saved, container);
+}
+
+function renderRecent(container) {
+  const recent = JSON.parse(localStorage.getItem("vizion4_recent_shows") || "[]");
+  if (!recent.length) {
+    container.innerHTML = `<p>No recently watched shows.</p>`;
+    return;
+  }
+  renderShows(recent, container);
 }
 
 // Search filtering
