@@ -25,6 +25,18 @@ async function loadShow() {
 
     header.innerHTML = `<h1>${info.title}</h1><p>By ${info.author || author}</p>`;
 
+    // Track recently watched show
+    const recent = JSON.parse(localStorage.getItem("vizion4_recent_shows") || "[]");
+    const entry = {
+      title: info.title,
+      author: info.author || author,
+      link: `show.html?author=${author}&name=${showName}`,
+      id: `${author}_${info.title}`,
+      timestamp: Date.now()
+    };
+    const updated = [entry, ...recent.filter(s => s.id !== entry.id)];
+    localStorage.setItem("vizion4_recent_shows", JSON.stringify(updated.slice(0, 10)));
+
     mp4Files.forEach((file, index) => {
       const title = episodeTitles[index] || `Episode ${index + 1}`;
       const episodeId = `${author}_${showName}_${file.name}`;
