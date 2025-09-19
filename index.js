@@ -2,12 +2,13 @@ const repo = "Kaytheprogrammingidiot/vizion4-videos";
 const baseApi = `https://api.github.com/repos/${repo}/contents/shows`;
 
 const homeContainer = document.getElementById("home-list");
-const recommendedContainer = document.getElementById("recommended-list");
+const myListContainer = document.getElementById("mylist-list");
 const searchInput = document.getElementById("search");
 const tabs = document.querySelectorAll("#tabs button");
 
 let allShows = [];
 
+// Tab switching
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
     tabs.forEach(t => t.classList.remove("active"));
@@ -15,7 +16,11 @@ tabs.forEach(tab => {
 
     const selected = tab.dataset.tab;
     homeContainer.style.display = selected === "home" ? "grid" : "none";
-    recommendedContainer.style.display = selected === "recommended" ? "grid" : "none";
+    myListContainer.style.display = selected === "mylist" ? "grid" : "none";
+
+    if (selected === "mylist") {
+      renderMyList(myListContainer);
+    }
   });
 });
 
@@ -47,7 +52,8 @@ async function loadAllShows() {
           title: info.title,
           author: info.author || author.name,
           iconUrl,
-          link: `show.html?author=${author.name}&name=${show.name}`
+          link: `show.html?author=${author.name}&name=${show.name}`,
+          id: `${author.name}_${info.title}`
         };
 
         allShows.push(showData);
@@ -55,7 +61,6 @@ async function loadAllShows() {
     }
 
     renderShows(allShows, homeContainer);
-    renderRecommended(allShows, recommendedContainer);
   } catch (err) {
     console.error("Error loading shows:", err);
     homeContainer.innerHTML = `<p>Failed to load shows.</p>`;
@@ -72,16 +77,32 @@ function renderShows(shows, container) {
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
       <a href="${show.link}">▶ Watch</a>
+      <button class="add-to-list" data-id="${show.id}">➕ Add to My List</button>
     `;
     container.appendChild(div);
   });
+
+  container.querySelectorAll(".add-to-list").forEach(button => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.id;
+      const existing = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+      const alreadyAdded = existing.some(item => item.id === id);
+      if (!alreadyAdded) {
+        const show = allShows.find(s => s.id === id);
+        existing.push(show);
+        localStorage.setItem("vizion4_mylist", JSON.stringify(existing));
+        button.textContent = "✔ Added";
+      }
+    });
+  });
 }
 
-function renderRecommended(shows, container) {
-  const recommended = shows.slice(0, 3);
-  renderShows(recommended, container);
+function renderMyList(container) {
+  const saved = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+  renderShows(saved, container);
 }
 
+// Search filtering
 searchInput.addEventListener("input", () => {
   const query = searchInput.value.toLowerCase();
   const filtered = allShows.filter(show =>
