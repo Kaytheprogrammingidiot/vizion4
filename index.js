@@ -12,6 +12,7 @@ let allShows = [];
 let currentTab = "home";
 
 let liveEpisodes = [];
+let liveIndex = 0;
 let liveLoaded = false;
 
 /* -------------------- TABS -------------------- */
@@ -35,39 +36,34 @@ tabs.forEach(tab => {
 
 /* -------------------- LOAD SHOWS -------------------- */
 async function loadAllShows() {
-  try {
-    const authors = await fetch(baseApi).then(r => r.json());
+  const authors = await fetch(baseApi).then(r => r.json());
 
-    for (const author of authors) {
-      if (author.type !== "dir") continue;
+  for (const author of authors) {
+    if (author.type !== "dir") continue;
 
-      const shows = await fetch(`${baseApi}/${author.name}`).then(r => r.json());
+    const shows = await fetch(`${baseApi}/${author.name}`).then(r => r.json());
 
-      for (const show of shows) {
-        if (show.type !== "dir") continue;
+    for (const show of shows) {
+      if (show.type !== "dir") continue;
 
-        const files = await fetch(`${baseApi}/${author.name}/${show.name}`).then(r => r.json());
-        const infoMeta = files.find(f => f.name === "info.json");
-        if (!infoMeta) continue;
+      const files = await fetch(`${baseApi}/${author.name}/${show.name}`).then(r => r.json());
+      const infoMeta = files.find(f => f.name === "info.json");
+      if (!infoMeta) continue;
 
-        const info = await fetch(infoMeta.download_url).then(r => r.json());
-        const icon = files.find(f => /\.(png|jpg|jpeg)$/i.test(f.name));
+      const info = await fetch(infoMeta.download_url).then(r => r.json());
+      const icon = files.find(f => /\.(png|jpg|jpeg)$/i.test(f.name));
 
-        allShows.push({
-          title: info.title,
-          author: info.author || author.name,
-          iconUrl: icon ? icon.download_url : null,
-          link: `show.html?author=${author.name}&name=${show.name}`,
-          id: `${author.name}_${info.title}`
-        });
-      }
+      allShows.push({
+        title: info.title,
+        author: info.author || author.name,
+        iconUrl: icon ? icon.download_url : null,
+        link: `show.html?author=${author.name}&name=${show.name}`,
+        id: `${author.name}_${info.title}`
+      });
     }
-
-    renderShows(allShows, homeContainer);
-  } catch (e) {
-    homeContainer.innerHTML = "<p>Failed to load shows.</p>";
-    console.error(e);
   }
+
+  renderShows(allShows, homeContainer);
 }
 
 /* -------------------- RENDER -------------------- */
@@ -78,62 +74,39 @@ function renderShows(shows, container) {
     const div = document.createElement("div");
     div.className = "show";
 
-    const inList = currentTab === "mylist";
-
     div.innerHTML = `
       ${show.iconUrl ? `<img src="${show.iconUrl}">` : ""}
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
       <a href="${show.link}">Watch</a>
-      <button class="${inList ? "remove" : "add"}" data-id="${show.id}">
-        ${inList ? "Remove from My List" : "Add to My List"}
-      </button>
     `;
 
     container.appendChild(div);
-  });
-
-  container.querySelectorAll(".add").forEach(b => {
-    b.onclick = () => {
-      const list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-      const show = allShows.find(s => s.id === b.dataset.id);
-      if (!list.some(s => s.id === show.id)) {
-        list.push(show);
-        localStorage.setItem("vizion4_mylist", JSON.stringify(list));
-        b.textContent = "✔ Added";
-      }
-    };
-  });
-
-  container.querySelectorAll(".remove").forEach(b => {
-    b.onclick = () => {
-      let list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-      list = list.filter(s => s.id !== b.dataset.id);
-      localStorage.setItem("vizion4_mylist", JSON.stringify(list));
-      renderMyList(container);
-    };
   });
 }
 
 function renderMyList(c) {
   const list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-  if (!list.length) return c.innerHTML = "<p>No shows yet.</p>";
-  renderShows(list, c);
+  if (!list.length) c.innerHTML = "<p>No shows yet.</p>";
+  else renderShows(list, c);
 }
 
 function renderRecent(c) {
   const list = JSON.parse(localStorage.getItem("vizion4_recent_shows") || "[]");
-  if (!list.length) return c.innerHTML = "<p>No recent shows.</p>";
-  renderShows(list, c);
+  if (!list.length) c.innerHTML = "<p>No recent shows.</p>";
+  else renderShows(list, c);
 }
 
 /* -------------------- SEARCH -------------------- */
 searchInput.oninput = () => {
   const q = searchInput.value.toLowerCase();
-  renderShows(allShows.filter(s =>
-    s.title.toLowerCase().includes(q) ||
-    s.author.toLowerCase().includes(q)
-  ), homeContainer);
+  renderShows(
+    allShows.filter(s =>
+      s.title.toLowerCase().includes(q) ||
+      s.author.toLowerCase().includes(q)
+    ),
+    homeContainer
+  );
 };
 
 /* -------------------- LIVE TV -------------------- */
@@ -164,20 +137,17 @@ async function loadLiveTV() {
     }
   }
 
-  startLive();
+  // deterministic shuffle
+  liveEpisodes.sort((a, b) => hash(a.url) - hash(b.url));
+
+  // determine starting index from time
+  liveIndex = Math.floor(Date.now() / 1000) % liveEpisodes.length;
+
+  playLiveEpisode();
 }
 
-function startLive() {
-  const SLOT = 22 * 60;
-  const now = Math.floor(Date.now() / 1000);
-
-  const shuffled = [...liveEpisodes].sort((a, b) =>
-    hash(a.url) - hash(b.url)
-  );
-
-  const index = Math.floor(now / SLOT) % shuffled.length;
-  const offset = now % SLOT;
-  const ep = shuffled[index];
+function playLiveEpisode() {
+  const ep = liveEpisodes[liveIndex];
 
   liveContainer.innerHTML = `
     <h2>🔴 Live Now</h2>
@@ -187,14 +157,29 @@ function startLive() {
     <p>Now Playing: ${ep.label}</p>
   `;
 
-  const v = document.getElementById("livePlayer");
-  v.onloadedmetadata = () => v.currentTime = offset;
+  const video = document.getElementById("livePlayer");
+
+  video.onloadedmetadata = () => {
+    const now = Math.floor(Date.now() / 1000);
+    const offset = now % Math.floor(video.duration || 1);
+
+    video.currentTime = offset;
+    video.play();
+  };
+
+  video.onended = () => {
+    liveIndex = (liveIndex + 1) % liveEpisodes.length;
+    playLiveEpisode();
+  };
 }
 
 function hash(s) {
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i);
-  return h | 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h;
 }
 
 loadAllShows();
