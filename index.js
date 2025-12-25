@@ -14,6 +14,9 @@ let currentTab = "home";
 let liveEpisodes = [];
 let liveIndex = 0;
 let liveLoaded = false;
+let upNextShown = false;
+
+const UP_NEXT_SECONDS = 10; // show preview 10s before end
 
 /* -------------------- TABS -------------------- */
 tabs.forEach(tab => {
@@ -69,18 +72,15 @@ async function loadAllShows() {
 /* -------------------- RENDER -------------------- */
 function renderShows(shows, container) {
   container.innerHTML = "";
-
   shows.forEach(show => {
     const div = document.createElement("div");
     div.className = "show";
-
     div.innerHTML = `
       ${show.iconUrl ? `<img src="${show.iconUrl}">` : ""}
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
       <a href="${show.link}">Watch</a>
     `;
-
     container.appendChild(div);
   });
 }
@@ -137,34 +137,65 @@ async function loadLiveTV() {
     }
   }
 
-  // deterministic shuffle
   liveEpisodes.sort((a, b) => hash(a.url) - hash(b.url));
-
-  // determine starting index from time
   liveIndex = Math.floor(Date.now() / 1000) % liveEpisodes.length;
 
   playLiveEpisode();
 }
 
 function playLiveEpisode() {
+  upNextShown = false;
+
   const ep = liveEpisodes[liveIndex];
+  const next = liveEpisodes[(liveIndex + 1) % liveEpisodes.length];
 
   liveContainer.innerHTML = `
     <h2>🔴 Live Now</h2>
-    <video id="livePlayer" autoplay controls playsinline>
-      <source src="${ep.url}" type="video/mp4">
-    </video>
+    <div style="position:relative">
+      <video id="livePlayer" autoplay controls playsinline>
+        <source src="${ep.url}" type="video/mp4">
+      </video>
+      <div id="upNext" style="
+        display:none;
+        position:absolute;
+        right:16px;
+        bottom:16px;
+        background:#000c;
+        padding:12px;
+        border-radius:8px;
+        max-width:260px;
+      ">
+        <strong>Up Next</strong>
+        <p style="margin:6px 0">${next.label}</p>
+        <span id="countdown"></span>
+      </div>
+    </div>
     <p>Now Playing: ${ep.label}</p>
   `;
 
   const video = document.getElementById("livePlayer");
+  const upNext = document.getElementById("upNext");
+  const countdown = document.getElementById("countdown");
 
   video.onloadedmetadata = () => {
     const now = Math.floor(Date.now() / 1000);
-    const offset = now % Math.floor(video.duration || 1);
-
-    video.currentTime = offset;
+    video.currentTime = now % Math.floor(video.duration || 1);
     video.play();
+  };
+
+  video.ontimeupdate = () => {
+    if (!video.duration) return;
+
+    const remaining = Math.floor(video.duration - video.currentTime);
+
+    if (remaining <= UP_NEXT_SECONDS && !upNextShown) {
+      upNextShown = true;
+      upNext.style.display = "block";
+    }
+
+    if (upNextShown) {
+      countdown.textContent = `Starting in ${remaining}s`;
+    }
   };
 
   video.onended = () => {
