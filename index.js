@@ -21,10 +21,16 @@ let liveEpisodes = [];
 let liveIndex = 0;
 let liveLoaded = false;
 let upNextShown = false;
+let liveVideo = null;
 
 /* ===================== TABS ===================== */
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
+    // stop live audio if leaving live tab
+    if (currentTab === "live" && tab.dataset.tab !== "live") {
+      stopLivePlayback();
+    }
+
     tabs.forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
 
@@ -38,6 +44,7 @@ tabs.forEach(tab => {
     if (currentTab === "mylist") renderMyList(myListContainer);
     if (currentTab === "recent") renderRecent(recentContainer);
     if (currentTab === "live") loadLiveTV();
+    if (currentTab === "home") renderShows(allShows, homeContainer);
   });
 });
 
@@ -76,64 +83,64 @@ async function loadAllShows() {
 /* ===================== RENDER SHOWS ===================== */
 function renderShows(shows, container) {
   container.innerHTML = "";
-
   const myList = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
 
   shows.forEach(show => {
+    const isInList = myList.some(s => s.id === show.id);
     const div = document.createElement("div");
     div.className = "show";
-
-    const isInList = myList.some(s => s.id === show.id);
 
     div.innerHTML = `
       ${show.iconUrl ? `<img src="${show.iconUrl}">` : ""}
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
       <a href="${show.link}">Watch</a>
-      <button class="${isInList ? "remove-from-list" : "add-to-list"}" data-id="${show.id}">
+      <button data-id="${show.id}">
         ${isInList ? "Remove from My List" : "Add to My List"}
       </button>
     `;
 
+    const button = div.querySelector("button");
+    button.onclick = () => toggleMyList(show.id);
+
     container.appendChild(div);
   });
-
-  // Add
-  container.querySelectorAll(".add-to-list").forEach(btn => {
-    btn.onclick = () => {
-      const list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-      const show = allShows.find(s => s.id === btn.dataset.id);
-      if (!list.some(s => s.id === show.id)) {
-        list.push(show);
-        localStorage.setItem("vizion4_mylist", JSON.stringify(list));
-        btn.textContent = "✔ Added";
-        btn.disabled = true;
-      }
-    };
-  });
-
-  // Remove
-  container.querySelectorAll(".remove-from-list").forEach(btn => {
-    btn.onclick = () => {
-      let list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-      list = list.filter(s => s.id !== btn.dataset.id);
-      localStorage.setItem("vizion4_mylist", JSON.stringify(list));
-      renderMyList(container);
-    };
-  });
 }
 
-/* ===================== MY LIST / RECENT ===================== */
-function renderMyList(c) {
+/* ===================== MY LIST ===================== */
+function toggleMyList(id) {
+  let list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+  const show = allShows.find(s => s.id === id);
+
+  if (list.some(s => s.id === id)) {
+    list = list.filter(s => s.id !== id);
+  } else {
+    list.push(show);
+  }
+
+  localStorage.setItem("vizion4_mylist", JSON.stringify(list));
+
+  // refresh visible views
+  if (currentTab === "home") renderShows(allShows, homeContainer);
+  if (currentTab === "mylist") renderMyList(myListContainer);
+}
+
+function renderMyList(container) {
   const list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-  if (!list.length) c.innerHTML = "<p>No shows in your list yet.</p>";
-  else renderShows(list, c);
+  if (!list.length) {
+    container.innerHTML = "<p>No shows in your list yet.</p>";
+  } else {
+    renderShows(list, container);
+  }
 }
 
-function renderRecent(c) {
+function renderRecent(container) {
   const list = JSON.parse(localStorage.getItem("vizion4_recent_shows") || "[]");
-  if (!list.length) c.innerHTML = "<p>No recently watched shows.</p>";
-  else renderShows(list, c);
+  if (!list.length) {
+    container.innerHTML = "<p>No recently watched shows.</p>";
+  } else {
+    renderShows(list, container);
+  }
 }
 
 /* ===================== SEARCH ===================== */
@@ -181,6 +188,16 @@ async function loadLiveTV() {
   preloadDurations(0);
 }
 
+function stopLivePlayback() {
+  if (liveVideo) {
+    liveVideo.pause();
+    liveVideo.src = "";
+    liveVideo.load();
+    liveVideo = null;
+  }
+  liveContainer.innerHTML = "";
+}
+
 /* ===================== PRELOAD DURATIONS ===================== */
 function preloadDurations(i) {
   if (i >= liveEpisodes.length) {
@@ -188,18 +205,12 @@ function preloadDurations(i) {
     return;
   }
 
-  const ep = liveEpisodes[i];
   const v = document.createElement("video");
-  v.src = ep.url;
+  v.src = liveEpisodes[i].url;
   v.preload = "metadata";
 
   v.onloadedmetadata = () => {
-    ep.duration = v.duration;
-    preloadDurations(i + 1);
-  };
-
-  v.onerror = () => {
-    ep.duration = 0;
+    liveEpisodes[i].duration = v.duration;
     preloadDurations(i + 1);
   };
 }
@@ -222,7 +233,6 @@ function startLiveFromClock() {
 /* ===================== PLAYBACK ===================== */
 function playLiveEpisodeAt(offset) {
   upNextShown = false;
-
   const ep = liveEpisodes[liveIndex];
   const next = liveEpisodes[(liveIndex + 1) % liveEpisodes.length];
 
@@ -240,7 +250,6 @@ function playLiveEpisodeAt(offset) {
         background:#000c;
         padding:12px;
         border-radius:8px;
-        max-width:260px;
       ">
         <strong>Up Next</strong>
         <p>${next.label}</p>
@@ -250,17 +259,17 @@ function playLiveEpisodeAt(offset) {
     <p>Now Playing: ${ep.label}</p>
   `;
 
-  const video = document.getElementById("livePlayer");
+  liveVideo = document.getElementById("livePlayer");
   const upNext = document.getElementById("upNext");
   const countdown = document.getElementById("countdown");
 
-  video.onloadedmetadata = () => {
-    video.currentTime = Math.min(offset, video.duration - 1);
-    video.play();
+  liveVideo.onloadedmetadata = () => {
+    liveVideo.currentTime = Math.min(offset, liveVideo.duration - 1);
+    liveVideo.play();
   };
 
-  video.ontimeupdate = () => {
-    const remaining = Math.floor(video.duration - video.currentTime);
+  liveVideo.ontimeupdate = () => {
+    const remaining = Math.floor(liveVideo.duration - liveVideo.currentTime);
     if (remaining <= UP_NEXT_SECONDS && !upNextShown) {
       upNextShown = true;
       upNext.style.display = "block";
@@ -268,7 +277,7 @@ function playLiveEpisodeAt(offset) {
     if (upNextShown) countdown.textContent = `Starting in ${remaining}s`;
   };
 
-  video.onended = () => {
+  liveVideo.onended = () => {
     liveIndex = (liveIndex + 1) % liveEpisodes.length;
     playLiveEpisodeAt(0);
   };
