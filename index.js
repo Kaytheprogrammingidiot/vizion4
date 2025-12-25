@@ -2,6 +2,7 @@ const repo = "Kaytheprogrammingidiot/vizion4-videos";
 const baseApi = `https://api.github.com/repos/${repo}/contents/shows`;
 
 const homeContainer = document.getElementById("home-list");
+const liveContainer = document.getElementById("live-container");
 const myListContainer = document.getElementById("mylist-list");
 const recentContainer = document.getElementById("recent-list");
 const searchInput = document.getElementById("search");
@@ -10,7 +11,10 @@ const tabs = document.querySelectorAll("#tabs button");
 let allShows = [];
 let currentTab = "home";
 
-// Tab switching
+let liveEpisodes = [];
+let liveLoaded = false;
+
+/* -------------------- TABS -------------------- */
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
     tabs.forEach(t => t.classList.remove("active"));
@@ -19,14 +23,17 @@ tabs.forEach(tab => {
     currentTab = tab.dataset.tab;
 
     homeContainer.style.display = currentTab === "home" ? "grid" : "none";
+    liveContainer.style.display = currentTab === "live" ? "block" : "none";
     myListContainer.style.display = currentTab === "mylist" ? "grid" : "none";
     recentContainer.style.display = currentTab === "recent" ? "grid" : "none";
 
     if (currentTab === "mylist") renderMyList(myListContainer);
     if (currentTab === "recent") renderRecent(recentContainer);
+    if (currentTab === "live") loadLiveTV();
   });
 });
 
+/* -------------------- LOAD SHOWS -------------------- */
 async function loadAllShows() {
   try {
     const authors = await fetch(baseApi).then(r => r.json());
@@ -34,119 +41,160 @@ async function loadAllShows() {
     for (const author of authors) {
       if (author.type !== "dir") continue;
 
-      const authorPath = `${baseApi}/${author.name}`;
-      const shows = await fetch(authorPath).then(r => r.json());
+      const shows = await fetch(`${baseApi}/${author.name}`).then(r => r.json());
 
       for (const show of shows) {
         if (show.type !== "dir") continue;
 
-        const showPath = `${authorPath}/${show.name}`;
-        const files = await fetch(showPath).then(r => r.json());
-
+        const files = await fetch(`${baseApi}/${author.name}/${show.name}`).then(r => r.json());
         const infoMeta = files.find(f => f.name === "info.json");
         if (!infoMeta) continue;
 
         const info = await fetch(infoMeta.download_url).then(r => r.json());
+        const icon = files.find(f => /\.(png|jpg|jpeg)$/i.test(f.name));
 
-        const iconFile = files.find(f => /\.(png|jpg|jpeg)$/i.test(f.name));
-        const iconUrl = iconFile ? iconFile.download_url : null;
-
-        const showData = {
+        allShows.push({
           title: info.title,
           author: info.author || author.name,
-          iconUrl,
+          iconUrl: icon ? icon.download_url : null,
           link: `show.html?author=${author.name}&name=${show.name}`,
           id: `${author.name}_${info.title}`
-        };
-
-        allShows.push(showData);
+        });
       }
     }
 
     renderShows(allShows, homeContainer);
-  } catch (err) {
-    console.error("Error loading shows:", err);
-    if (homeContainer) {
-      homeContainer.innerHTML = `<p>Failed to load shows.</p>`;
-    }
+  } catch (e) {
+    homeContainer.innerHTML = "<p>Failed to load shows.</p>";
+    console.error(e);
   }
 }
 
+/* -------------------- RENDER -------------------- */
 function renderShows(shows, container) {
-  if (!container) return;
   container.innerHTML = "";
 
   shows.forEach(show => {
     const div = document.createElement("div");
     div.className = "show";
 
-    const isInMyList = currentTab === "mylist";
+    const inList = currentTab === "mylist";
 
     div.innerHTML = `
-      ${show.iconUrl ? `<img src="${show.iconUrl}" alt="${show.title}" style="width:100%;border-radius:8px;">` : ""}
+      ${show.iconUrl ? `<img src="${show.iconUrl}">` : ""}
       <h2>${show.title}</h2>
       <p>By ${show.author}</p>
       <a href="${show.link}">Watch</a>
-      <button class="${isInMyList ? "remove-from-list" : "add-to-list"}" data-id="${show.id}">
-        ${isInMyList ? "Remove from My List" : "Add to My List"}
+      <button class="${inList ? "remove" : "add"}" data-id="${show.id}">
+        ${inList ? "Remove from My List" : "Add to My List"}
       </button>
     `;
+
     container.appendChild(div);
   });
 
-  // Add-to-list logic
-  container.querySelectorAll(".add-to-list").forEach(button => {
-    button.addEventListener("click", () => {
-      const id = button.dataset.id;
-      const existing = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-      const alreadyAdded = existing.some(item => item.id === id);
-      if (!alreadyAdded) {
-        const show = allShows.find(s => s.id === id);
-        existing.push(show);
-        localStorage.setItem("vizion4_mylist", JSON.stringify(existing));
-        button.textContent = "✔ Added";
+  container.querySelectorAll(".add").forEach(b => {
+    b.onclick = () => {
+      const list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+      const show = allShows.find(s => s.id === b.dataset.id);
+      if (!list.some(s => s.id === show.id)) {
+        list.push(show);
+        localStorage.setItem("vizion4_mylist", JSON.stringify(list));
+        b.textContent = "✔ Added";
       }
-    });
+    };
   });
 
-  // Remove-from-list logic
-  container.querySelectorAll(".remove-from-list").forEach(button => {
-    button.addEventListener("click", () => {
-      const id = button.dataset.id;
-      let existing = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-      existing = existing.filter(item => item.id !== id);
-      localStorage.setItem("vizion4_mylist", JSON.stringify(existing));
-      renderMyList(container); // Refresh list
-    });
+  container.querySelectorAll(".remove").forEach(b => {
+    b.onclick = () => {
+      let list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+      list = list.filter(s => s.id !== b.dataset.id);
+      localStorage.setItem("vizion4_mylist", JSON.stringify(list));
+      renderMyList(container);
+    };
   });
 }
 
-function renderMyList(container) {
-  const saved = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
-  if (!saved.length) {
-    container.innerHTML = `<p>No shows in your list yet.</p>`;
-    return;
-  }
-  renderShows(saved, container);
+function renderMyList(c) {
+  const list = JSON.parse(localStorage.getItem("vizion4_mylist") || "[]");
+  if (!list.length) return c.innerHTML = "<p>No shows yet.</p>";
+  renderShows(list, c);
 }
 
-function renderRecent(container) {
-  const recent = JSON.parse(localStorage.getItem("vizion4_recent_shows") || "[]");
-  if (!recent.length) {
-    container.innerHTML = `<p>No recently watched shows.</p>`;
-    return;
-  }
-  renderShows(recent, container);
+function renderRecent(c) {
+  const list = JSON.parse(localStorage.getItem("vizion4_recent_shows") || "[]");
+  if (!list.length) return c.innerHTML = "<p>No recent shows.</p>";
+  renderShows(list, c);
 }
 
-// Search filtering
-searchInput.addEventListener("input", () => {
-  const query = searchInput.value.toLowerCase();
-  const filtered = allShows.filter(show =>
-    show.title.toLowerCase().includes(query) ||
-    show.author.toLowerCase().includes(query)
+/* -------------------- SEARCH -------------------- */
+searchInput.oninput = () => {
+  const q = searchInput.value.toLowerCase();
+  renderShows(allShows.filter(s =>
+    s.title.toLowerCase().includes(q) ||
+    s.author.toLowerCase().includes(q)
+  ), homeContainer);
+};
+
+/* -------------------- LIVE TV -------------------- */
+async function loadLiveTV() {
+  if (liveLoaded) return;
+  liveLoaded = true;
+
+  liveContainer.innerHTML = "<p>Loading live broadcast…</p>";
+
+  const authors = await fetch(baseApi).then(r => r.json());
+
+  for (const author of authors) {
+    if (author.type !== "dir") continue;
+
+    const shows = await fetch(`${baseApi}/${author.name}`).then(r => r.json());
+
+    for (const show of shows) {
+      if (show.type !== "dir") continue;
+
+      const files = await fetch(`${baseApi}/${author.name}/${show.name}`).then(r => r.json());
+
+      files.filter(f => f.name.endsWith(".mp4")).forEach(f => {
+        liveEpisodes.push({
+          url: f.download_url,
+          label: `${show.name} – ${f.name}`
+        });
+      });
+    }
+  }
+
+  startLive();
+}
+
+function startLive() {
+  const SLOT = 22 * 60;
+  const now = Math.floor(Date.now() / 1000);
+
+  const shuffled = [...liveEpisodes].sort((a, b) =>
+    hash(a.url) - hash(b.url)
   );
-  renderShows(filtered, homeContainer);
-});
+
+  const index = Math.floor(now / SLOT) % shuffled.length;
+  const offset = now % SLOT;
+  const ep = shuffled[index];
+
+  liveContainer.innerHTML = `
+    <h2>🔴 Live Now</h2>
+    <video id="livePlayer" autoplay controls playsinline>
+      <source src="${ep.url}" type="video/mp4">
+    </video>
+    <p>Now Playing: ${ep.label}</p>
+  `;
+
+  const v = document.getElementById("livePlayer");
+  v.onloadedmetadata = () => v.currentTime = offset;
+}
+
+function hash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i);
+  return h | 0;
+}
 
 loadAllShows();
