@@ -1,6 +1,11 @@
 const repo = "Kaytheprogrammingidiot/vizion4-videos";
 const baseApi = `https://api.github.com/repos/${repo}/contents/shows`;
 
+// ===== CHANNEL CONFIG =====
+const CHANNEL_START = 1704067200; // Jan 1 2024 UTC (DO NOT CHANGE)
+const UP_NEXT_SECONDS = 10;
+
+// ===== DOM =====
 const homeContainer = document.getElementById("home-list");
 const liveContainer = document.getElementById("live-container");
 const myListContainer = document.getElementById("mylist-list");
@@ -8,6 +13,7 @@ const recentContainer = document.getElementById("recent-list");
 const searchInput = document.getElementById("search");
 const tabs = document.querySelectorAll("#tabs button");
 
+// ===== STATE =====
 let allShows = [];
 let currentTab = "home";
 
@@ -16,9 +22,7 @@ let liveIndex = 0;
 let liveLoaded = false;
 let upNextShown = false;
 
-const UP_NEXT_SECONDS = 10; // show preview 10s before end
-
-/* -------------------- TABS -------------------- */
+// ===================== TABS =====================
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
     tabs.forEach(t => t.classList.remove("active"));
@@ -37,7 +41,7 @@ tabs.forEach(tab => {
   });
 });
 
-/* -------------------- LOAD SHOWS -------------------- */
+// ===================== LOAD SHOWS =====================
 async function loadAllShows() {
   const authors = await fetch(baseApi).then(r => r.json());
 
@@ -69,9 +73,10 @@ async function loadAllShows() {
   renderShows(allShows, homeContainer);
 }
 
-/* -------------------- RENDER -------------------- */
+// ===================== RENDER =====================
 function renderShows(shows, container) {
   container.innerHTML = "";
+
   shows.forEach(show => {
     const div = document.createElement("div");
     div.className = "show";
@@ -97,7 +102,7 @@ function renderRecent(c) {
   else renderShows(list, c);
 }
 
-/* -------------------- SEARCH -------------------- */
+// ===================== SEARCH =====================
 searchInput.oninput = () => {
   const q = searchInput.value.toLowerCase();
   renderShows(
@@ -109,7 +114,7 @@ searchInput.oninput = () => {
   );
 };
 
-/* -------------------- LIVE TV -------------------- */
+// ===================== LIVE TV =====================
 async function loadLiveTV() {
   if (liveLoaded) return;
   liveLoaded = true;
@@ -128,22 +133,64 @@ async function loadLiveTV() {
 
       const files = await fetch(`${baseApi}/${author.name}/${show.name}`).then(r => r.json());
 
-      files.filter(f => f.name.endsWith(".mp4")).forEach(f => {
-        liveEpisodes.push({
-          url: f.download_url,
-          label: `${show.name} – ${f.name}`
+      files
+        .filter(f => f.name.endsWith(".mp4"))
+        .forEach(f => {
+          liveEpisodes.push({
+            url: f.download_url,
+            label: `${show.name} – ${f.name}`,
+            duration: 0
+          });
         });
-      });
     }
   }
 
+  // deterministic order
   liveEpisodes.sort((a, b) => hash(a.url) - hash(b.url));
-  liveIndex = Math.floor(Date.now() / 1000) % liveEpisodes.length;
 
-  playLiveEpisode();
+  preloadDurations(0);
 }
 
-function playLiveEpisode() {
+// ===================== DURATION PRELOAD =====================
+function preloadDurations(i) {
+  if (i >= liveEpisodes.length) {
+    startLiveFromClock();
+    return;
+  }
+
+  const ep = liveEpisodes[i];
+  const v = document.createElement("video");
+  v.src = ep.url;
+  v.preload = "metadata";
+
+  v.onloadedmetadata = () => {
+    ep.duration = v.duration;
+    preloadDurations(i + 1);
+  };
+
+  v.onerror = () => {
+    ep.duration = 0;
+    preloadDurations(i + 1);
+  };
+}
+
+// ===================== CHANNEL CLOCK =====================
+function startLiveFromClock() {
+  const now = Math.floor(Date.now() / 1000);
+  let elapsed = now - CHANNEL_START;
+
+  let index = 0;
+  while (elapsed > liveEpisodes[index].duration) {
+    elapsed -= liveEpisodes[index].duration;
+    index = (index + 1) % liveEpisodes.length;
+  }
+
+  liveIndex = index;
+  playLiveEpisodeAt(elapsed);
+}
+
+// ===================== PLAYBACK =====================
+function playLiveEpisodeAt(offset) {
   upNextShown = false;
 
   const ep = liveEpisodes[liveIndex];
@@ -178,32 +225,26 @@ function playLiveEpisode() {
   const countdown = document.getElementById("countdown");
 
   video.onloadedmetadata = () => {
-    const now = Math.floor(Date.now() / 1000);
-    video.currentTime = now % Math.floor(video.duration || 1);
+    video.currentTime = Math.min(offset, video.duration - 1);
     video.play();
   };
 
   video.ontimeupdate = () => {
-    if (!video.duration) return;
-
     const remaining = Math.floor(video.duration - video.currentTime);
-
     if (remaining <= UP_NEXT_SECONDS && !upNextShown) {
       upNextShown = true;
       upNext.style.display = "block";
     }
-
-    if (upNextShown) {
-      countdown.textContent = `Starting in ${remaining}s`;
-    }
+    if (upNextShown) countdown.textContent = `Starting in ${remaining}s`;
   };
 
   video.onended = () => {
     liveIndex = (liveIndex + 1) % liveEpisodes.length;
-    playLiveEpisode();
+    playLiveEpisodeAt(0);
   };
 }
 
+// ===================== HASH =====================
 function hash(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
@@ -213,4 +254,5 @@ function hash(s) {
   return h;
 }
 
+// ===================== INIT =====================
 loadAllShows();
